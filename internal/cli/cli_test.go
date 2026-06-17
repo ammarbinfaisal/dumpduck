@@ -47,6 +47,22 @@ func TestRunInstallDryRunPrintsPlist(t *testing.T) {
 	}
 }
 
+func TestRunHelpMentionsStableBinaryForInstall(t *testing.T) {
+	var stdout bytes.Buffer
+
+	if err := run([]string{"help"}, &stdout); err != nil {
+		t.Fatalf("run help: %v", err)
+	}
+
+	output := stdout.String()
+	if !strings.Contains(output, "Install note: build a stable binary before install") {
+		t.Fatalf("help output missing install note:\n%s", output)
+	}
+	if !strings.Contains(output, "go build -o ./bin/dumpduck ./cmd/dumpduck") {
+		t.Fatalf("help output missing stable build example:\n%s", output)
+	}
+}
+
 func TestRunInstallWritesPlistAndCreatesConfigWhenMissing(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")

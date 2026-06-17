@@ -152,7 +152,7 @@ func runStatus(args []string, stdout io.Writer) error {
 	fmt.Fprintf(stdout, "Config path: %s\n", *path)
 	fmt.Fprintf(stdout, "Dump dir: %s\n", cfg.Capture.OutputDir)
 	fmt.Fprintf(stdout, "Upload frequency: %s\n", cfg.Upload.Frequency)
-	fmt.Fprintf(stdout, "Rclone destination: %s:%s\n", cfg.Upload.RcloneRemote, cfg.Upload.RclonePath)
+	fmt.Fprintf(stdout, "Upload destination: %s:%s\n", cfg.Upload.RcloneRemote, cfg.Upload.RclonePath)
 	fmt.Fprintf(stdout, "State path: %s\n", cfg.State.Path)
 	fmt.Fprintf(stdout, "Last upload: %s\n", formatTime(st.LastSuccessfulUploadTime, "never"))
 	fmt.Fprintf(stdout, "Current window start: %s\n", formatTime(st.CurrentWindowStartTime, "none"))
@@ -407,6 +407,9 @@ func printRootUsage(w io.Writer) {
 	fmt.Fprintln(w, "  run --config <path>")
 	fmt.Fprintln(w, "  install [--config <path>] [--binary <path>] [--plist <path>] [--dry-run] [--skip-load]")
 	fmt.Fprintln(w, "  uninstall [--plist <path>] [--dry-run] [--skip-unload]")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Install note: build a stable binary before install, for example:")
+	fmt.Fprintln(w, "  go build -o ./bin/dumpduck ./cmd/dumpduck")
 }
 
 func printConfigUsage(w io.Writer) {

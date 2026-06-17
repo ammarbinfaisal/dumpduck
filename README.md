@@ -1,6 +1,6 @@
 # DumpDuck
 
-DumpDuck is a macOS-oriented background TCP dump service for capturing traffic into rotating files and uploading completed windows to remote storage. Phase 3 adds LaunchDaemon installation and removal around the existing `dumpduck run` runtime.
+DumpDuck is a macOS background `tcpdump` service managed with LaunchDaemon, configured with YAML, stateful through a JSON state file, and able to upload completed capture windows to remote storage with periodic `rclone` runs.
 
 ## Commands
 
@@ -8,6 +8,12 @@ Build or run the CLI from the repository root:
 
 ```bash
 go run ./cmd/dumpduck --help
+```
+
+Before `install`, build a stable binary so the LaunchDaemon does not point at a temporary `go run` artifact:
+
+```bash
+go build -o ./bin/dumpduck ./cmd/dumpduck
 ```
 
 Available commands:
@@ -33,7 +39,7 @@ Default config path:
 
 ### `config set`
 
-Updates supported config keys in place and persists them back to YAML. Phase 1 supports:
+Updates supported config keys in place and persists them back to YAML. Supported keys:
 
 ```text
 upload.frequency
@@ -48,6 +54,8 @@ logging.path
 
 Duration values are validated with Go duration syntax such as `15m`, `1h`, or `24h`.
 
+`upload.rclone_path` is the destination path inside the configured remote, not the local `rclone` executable path. The executable path stays in the YAML config as `binaries.rclone_path`.
+
 ### `status`
 
 Loads the YAML config and the JSON state file if present, then prints:
@@ -55,7 +63,7 @@ Loads the YAML config and the JSON state file if present, then prints:
 - config path
 - dump directory
 - upload frequency
-- rclone destination
+- upload destination
 - state path
 - last successful upload time or `never`
 - current window start time or `none`
@@ -114,7 +122,7 @@ The generated LaunchDaemon runs:
 Supported flags:
 
 - `--config <path>`: config file path. If the file does not exist, DumpDuck creates a default config there before writing the plist.
-- `--binary <path>`: binary path to run. Defaults to the current executable when it can be discovered. If you invoke DumpDuck through `go run`, pass `--binary` explicitly so the LaunchDaemon does not point at Go's temporary build artifact.
+- `--binary <path>`: binary path to run. Defaults to the current executable when it can be discovered. For a real install, build DumpDuck first and point `--binary` at that stable path. DumpDuck rejects an implicit `go run` build artifact to avoid writing a LaunchDaemon plist that points at a temporary binary.
 - `--plist <path>`: LaunchDaemon plist path.
 - `--dry-run`: prints the generated plist to stdout and does not write files or call `launchctl`.
 - `--skip-load`: writes the plist but skips `launchctl bootstrap system <plist>`.
@@ -208,9 +216,9 @@ The default path is:
 /var/lib/dumpduck/state.json
 ```
 
-## Remaining work
+## Future work
 
-Later phases may add:
+Possible future improvements:
 
 - deeper service-health reporting beyond plist presence
 - more operational tooling around the existing background service
