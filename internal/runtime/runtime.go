@@ -3,6 +3,8 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -220,7 +222,12 @@ func (s *Service) uploadPending(st *state.State, rotateInterval time.Duration, s
 
 	remoteRoot := remoteRoot(s.cfg.Upload.RcloneRemote, s.cfg.Upload.RclonePath)
 	for _, localPath := range candidates {
-		output, err := exec.Command(s.cfg.Binaries.RclonePath, "copy", localPath, remoteRoot).CombinedOutput()
+		metadata, err := uploadFileMetadata(localPath)
+		if err != nil {
+			return err
+		}
+
+		output, err := exec.Command(s.cfg.Binaries.RclonePath, buildRcloneCopyArgs(s.cfg, localPath, remoteRoot)...).CombinedOutput()
 		if err != nil {
 			message := strings.TrimSpace(string(output))
 			if message == "" {
@@ -234,6 +241,8 @@ func (s *Service) uploadPending(st *state.State, rotateInterval time.Duration, s
 			Path:       localPath,
 			RemotePath: remoteFilePath(remoteRoot, localPath),
 			UploadedAt: uploadedAt,
+			SizeBytes:  metadata.sizeBytes,
+			SHA1:       metadata.sha1,
 		})
 		st.LastSuccessfulUploadTime = &uploadedAt
 		if err := state.Save(s.cfg.State.Path, *st); err != nil {
@@ -296,6 +305,46 @@ func buildTCPDumpArgs(cfg config.Config) ([]string, error) {
 	args = append(args, splitBPFArgs(cfg.Capture.BPFFilter)...)
 
 	return args, nil
+}
+
+func buildRcloneCopyArgs(cfg config.Config, localPath, remoteRoot string) []string {
+	args := make([]string, 0, 5)
+	if strings.TrimSpace(cfg.Upload.RcloneConfigPath) != "" {
+		args = append(args, "--config", cfg.Upload.RcloneConfigPath)
+	}
+	args = append(args, "copy", localPath, remoteRoot)
+	return args
+}
+
+type uploadMetadata struct {
+	sizeBytes int64
+	sha1      string
+}
+
+func uploadFileMetadata(localPath string) (uploadMetadata, error) {
+	info, err := os.Stat(localPath)
+	if err != nil {
+		return uploadMetadata{}, fmt.Errorf("stat upload candidate %q: %w", localPath, err)
+	}
+	if !info.Mode().IsRegular() {
+		return uploadMetadata{}, fmt.Errorf("upload candidate %q is not a regular file", localPath)
+	}
+
+	file, err := os.Open(localPath)
+	if err != nil {
+		return uploadMetadata{}, fmt.Errorf("open upload candidate %q for sha1: %w", localPath, err)
+	}
+	defer file.Close()
+
+	hash := sha1.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return uploadMetadata{}, fmt.Errorf("hash upload candidate %q: %w", localPath, err)
+	}
+
+	return uploadMetadata{
+		sizeBytes: info.Size(),
+		sha1:      hex.EncodeToString(hash.Sum(nil)),
+	}, nil
 }
 
 func splitBPFArgs(filter string) []string {

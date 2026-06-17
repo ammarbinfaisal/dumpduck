@@ -1,6 +1,8 @@
 package state
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -36,6 +38,8 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 				Path:       "/tmp/capture-1.pcap",
 				RemotePath: "gdrive:dumpduck/capture-1.pcap",
 				UploadedAt: lastUpload,
+				SizeBytes:  4,
+				SHA1:       testSHA1("pcap"),
 			},
 		},
 		CurrentWindowStartTime: &windowStart,
@@ -75,6 +79,8 @@ func TestRecordUploadedFileReplacesExistingPath(t *testing.T) {
 		Path:       "/tmp/../tmp/capture-1.pcap",
 		RemotePath: "remote:captures-renamed/capture-1.pcap",
 		UploadedAt: updatedAt,
+		SizeBytes:  1024,
+		SHA1:       testSHA1("new-content"),
 	})
 
 	if len(st.UploadedFiles) != 1 {
@@ -83,4 +89,15 @@ func TestRecordUploadedFileReplacesExistingPath(t *testing.T) {
 	if st.UploadedFiles[0].RemotePath != "remote:captures-renamed/capture-1.pcap" {
 		t.Fatalf("expected updated remote path, got %#v", st.UploadedFiles[0])
 	}
+	if st.UploadedFiles[0].SizeBytes != 1024 {
+		t.Fatalf("expected updated size, got %#v", st.UploadedFiles[0])
+	}
+	if st.UploadedFiles[0].SHA1 != testSHA1("new-content") {
+		t.Fatalf("expected updated sha1, got %#v", st.UploadedFiles[0])
+	}
+}
+
+func testSHA1(value string) string {
+	sum := sha1.Sum([]byte(value))
+	return hex.EncodeToString(sum[:])
 }

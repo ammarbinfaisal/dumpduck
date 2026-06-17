@@ -25,6 +25,7 @@ var supportedSetKeys = []string{
 	"logging.path",
 	"state.path",
 	"upload.frequency",
+	"upload.rclone_config_path",
 	"upload.rclone_path",
 	"upload.rclone_remote",
 }
@@ -50,6 +51,7 @@ type UploadConfig struct {
 	Frequency          string `yaml:"frequency"`
 	RcloneRemote       string `yaml:"rclone_remote"`
 	RclonePath         string `yaml:"rclone_path"`
+	RcloneConfigPath   string `yaml:"rclone_config_path"`
 	DeleteAfterSuccess bool   `yaml:"delete_after_success"`
 }
 
@@ -80,6 +82,7 @@ func Default() Config {
 			Frequency:          "15m",
 			RcloneRemote:       "gdrive",
 			RclonePath:         "dumpduck",
+			RcloneConfigPath:   "",
 			DeleteAfterSuccess: false,
 		},
 		State: StateConfig{
@@ -163,6 +166,11 @@ func (c *Config) Set(key, value string) error {
 			return err
 		}
 		c.Upload.RclonePath = value
+	case "upload.rclone_config_path":
+		if err := validateAbsolutePathIfSet("upload.rclone_config_path", value); err != nil {
+			return err
+		}
+		c.Upload.RcloneConfigPath = value
 	case "capture.interface":
 		c.Capture.Interface = value
 	case "capture.bpf_filter":
@@ -208,6 +216,9 @@ func (c Config) Validate() error {
 	if err := validateNonEmpty("upload.rclone_path", c.Upload.RclonePath); err != nil {
 		return err
 	}
+	if err := validateAbsolutePathIfSet("upload.rclone_config_path", c.Upload.RcloneConfigPath); err != nil {
+		return err
+	}
 	if err := validateNonEmpty("state.path", c.State.Path); err != nil {
 		return err
 	}
@@ -241,6 +252,17 @@ func validateDurationString(field, value string) error {
 func validateNonEmpty(field, value string) error {
 	if strings.TrimSpace(value) == "" {
 		return fmt.Errorf("%s must not be empty", field)
+	}
+	return nil
+}
+
+func validateAbsolutePathIfSet(field, value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	if !filepath.IsAbs(value) {
+		return fmt.Errorf("%s must be an absolute path when set", field)
 	}
 	return nil
 }

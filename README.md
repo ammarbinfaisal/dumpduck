@@ -43,6 +43,7 @@ Updates supported config keys in place and persists them back to YAML. Supported
 
 ```text
 upload.frequency
+upload.rclone_config_path
 upload.rclone_remote
 upload.rclone_path
 capture.interface
@@ -56,6 +57,8 @@ Duration values are validated with Go duration syntax such as `15m`, `1h`, or `2
 
 `upload.rclone_path` is the destination path inside the configured remote, not the local `rclone` executable path. The executable path stays in the YAML config as `binaries.rclone_path`.
 
+`upload.rclone_config_path` is optional. When set, DumpDuck passes it to rclone as `--config <path>`, which is useful for LaunchDaemon installs because the service runs as root and will otherwise look for root's default rclone config instead of your interactive user's config.
+
 ### `status`
 
 Loads the YAML config and the JSON state file if present, then prints:
@@ -64,6 +67,7 @@ Loads the YAML config and the JSON state file if present, then prints:
 - dump directory
 - upload frequency
 - upload destination
+- rclone config path, or `rclone default` when unset
 - state path
 - last successful upload time or `never`
 - current window start time or `none`
@@ -154,6 +158,48 @@ Write the plist without loading it yet:
 sudo dumpduck install --skip-load
 ```
 
+## Service registration scripts
+
+The `scripts/` directory includes wrappers for registering DumpDuck as a background service.
+
+### macOS LaunchDaemon
+
+Register or refresh the macOS LaunchDaemon with:
+
+```bash
+DUMPDUCK_RCLONE_CONFIG="$HOME/.config/rclone/rclone.conf" ./scripts/register-launchctl.sh
+```
+
+The script builds `./bin/dumpduck`, writes `/Library/LaunchDaemons/com.dumpduck.service.plist`, updates `upload.rclone_config_path` when `DUMPDUCK_RCLONE_CONFIG` is set, bootstraps the service with `launchctl`, and prints `dumpduck status`.
+
+Optional overrides:
+
+```text
+DUMPDUCK_BINARY=/absolute/path/to/dumpduck
+DUMPDUCK_CONFIG=/etc/dumpduck/config.yaml
+DUMPDUCK_PLIST=/Library/LaunchDaemons/com.dumpduck.service.plist
+DUMPDUCK_RCLONE_CONFIG=/absolute/path/to/rclone.conf
+```
+
+### Linux systemd
+
+Register or refresh a systemd service with:
+
+```bash
+DUMPDUCK_RCLONE_CONFIG="$HOME/.config/rclone/rclone.conf" ./scripts/register-systemctl.sh
+```
+
+The script builds `./bin/dumpduck`, creates `/etc/dumpduck/config.yaml` if needed, writes `/etc/systemd/system/dumpduck.service`, runs `systemctl daemon-reload`, enables and restarts the service, then prints `systemctl status`.
+
+Optional overrides:
+
+```text
+DUMPDUCK_BINARY=/absolute/path/to/dumpduck
+DUMPDUCK_CONFIG=/etc/dumpduck/config.yaml
+DUMPDUCK_SYSTEMD_UNIT=/etc/systemd/system/dumpduck.service
+DUMPDUCK_RCLONE_CONFIG=/absolute/path/to/rclone.conf
+```
+
 ### `uninstall`
 
 `dumpduck uninstall` removes the LaunchDaemon plist and, unless told otherwise, unloads the service first with:
@@ -192,6 +238,7 @@ upload:
   frequency: 15m
   rclone_remote: gdrive
   rclone_path: dumpduck
+  rclone_config_path: ""
   delete_after_success: false
 state:
   path: /var/lib/dumpduck/state.json
@@ -207,7 +254,7 @@ binaries:
 The JSON state file tracks:
 
 - last successful upload time
-- uploaded file records
+- uploaded file records with local path, remote path, upload time, byte size, and SHA1
 - current window start time
 
 The default path is:

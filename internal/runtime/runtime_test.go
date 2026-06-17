@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -139,6 +141,65 @@ func TestBuildTCPDumpArgs(t *testing.T) {
 	}
 }
 
+func TestBuildRcloneCopyArgsIncludesConfigPathWhenSet(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Default()
+	cfg.Upload.RcloneConfigPath = "/Users/test/.config/rclone/rclone.conf"
+
+	got := buildRcloneCopyArgs(cfg, "/tmp/dump.pcap", "remote:captures")
+	want := []string{"--config", "/Users/test/.config/rclone/rclone.conf", "copy", "/tmp/dump.pcap", "remote:captures"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("rclone args mismatch:\nwant: %#v\ngot: %#v", want, got)
+	}
+}
+
+func TestBuildRcloneCopyArgsUsesDefaultConfigWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Default()
+
+	got := buildRcloneCopyArgs(cfg, "/tmp/dump.pcap", "remote:captures")
+	want := []string{"copy", "/tmp/dump.pcap", "remote:captures"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("rclone args mismatch:\nwant: %#v\ngot: %#v", want, got)
+	}
+}
+
+func TestUploadFileMetadata(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "capture.pcap")
+	content := "packet-data"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write capture: %v", err)
+	}
+
+	got, err := uploadFileMetadata(path)
+	if err != nil {
+		t.Fatalf("upload file metadata: %v", err)
+	}
+	if got.sizeBytes != int64(len(content)) {
+		t.Fatalf("unexpected size: got %d want %d", got.sizeBytes, len(content))
+	}
+	if got.sha1 != testSHA1(content) {
+		t.Fatalf("unexpected sha1: got %s want %s", got.sha1, testSHA1(content))
+	}
+}
+
+func TestUploadFileMetadataMissingFileReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := uploadFileMetadata(filepath.Join(t.TempDir(), "missing.pcap"))
+	if err == nil {
+		t.Fatal("expected missing file metadata error")
+	}
+	if !strings.Contains(err.Error(), "stat upload candidate") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRunExpiredWindowUploadsAndExitsWithoutTCPDump(t *testing.T) {
 	t.Parallel()
 
@@ -190,6 +251,8 @@ func TestRunExpiredWindowUploadsAndExitsWithoutTCPDump(t *testing.T) {
 	if len(st.UploadedFiles) != 2 {
 		t.Fatalf("expected two uploaded file records, got %#v", st.UploadedFiles)
 	}
+	assertUploadedMetadata(t, st, oldFile, "pcap")
+	assertUploadedMetadata(t, st, recentFile, "pcap")
 }
 
 func TestRunActiveWindowUploadsAndClearsExpiredWindow(t *testing.T) {
@@ -359,4 +422,28 @@ func itoa(value int) string {
 
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func assertUploadedMetadata(t *testing.T, st state.State, localPath, content string) {
+	t.Helper()
+
+	for _, record := range st.UploadedFiles {
+		if record.Path != filepath.Clean(localPath) {
+			continue
+		}
+		if record.SizeBytes != int64(len(content)) {
+			t.Fatalf("unexpected size for %s: got %d want %d", localPath, record.SizeBytes, len(content))
+		}
+		if record.SHA1 != testSHA1(content) {
+			t.Fatalf("unexpected sha1 for %s: got %s want %s", localPath, record.SHA1, testSHA1(content))
+		}
+		return
+	}
+
+	t.Fatalf("uploaded record not found for %s in %#v", localPath, st.UploadedFiles)
+}
+
+func testSHA1(value string) string {
+	sum := sha1.Sum([]byte(value))
+	return hex.EncodeToString(sum[:])
 }

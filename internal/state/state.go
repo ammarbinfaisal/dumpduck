@@ -18,6 +18,8 @@ type UploadedFileRecord struct {
 	Path       string    `json:"path"`
 	RemotePath string    `json:"remote_path,omitempty"`
 	UploadedAt time.Time `json:"uploaded_at"`
+	SizeBytes  int64     `json:"size_bytes,omitempty"`
+	SHA1       string    `json:"sha1,omitempty"`
 }
 
 func (s State) UploadedFileIndex() map[string]UploadedFileRecord {

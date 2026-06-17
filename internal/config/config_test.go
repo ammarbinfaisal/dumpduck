@@ -39,6 +39,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Upload.RclonePath != "dumpduck" {
 		t.Fatalf("unexpected rclone path %q", cfg.Upload.RclonePath)
 	}
+	if cfg.Upload.RcloneConfigPath != "" {
+		t.Fatalf("unexpected rclone config path %q", cfg.Upload.RcloneConfigPath)
+	}
 	if cfg.Upload.DeleteAfterSuccess {
 		t.Fatal("delete after success should default to false")
 	}
@@ -82,14 +85,15 @@ func TestSetSupportedFields(t *testing.T) {
 
 	cfg := Default()
 	updates := map[string]string{
-		"upload.frequency":     "30m",
-		"upload.rclone_remote": "backblaze",
-		"upload.rclone_path":   "captures/team-a",
-		"capture.interface":    "en0",
-		"capture.bpf_filter":   "tcp port 443",
-		"capture.output_dir":   "/tmp/dumps",
-		"state.path":           "/tmp/state.json",
-		"logging.path":         "/tmp/dumpduck.log",
+		"upload.frequency":          "30m",
+		"upload.rclone_config_path": filepath.Join(t.TempDir(), "rclone.conf"),
+		"upload.rclone_remote":      "backblaze",
+		"upload.rclone_path":        "captures/team-a",
+		"capture.interface":         "en0",
+		"capture.bpf_filter":        "tcp port 443",
+		"capture.output_dir":        "/tmp/dumps",
+		"state.path":                "/tmp/state.json",
+		"logging.path":              "/tmp/dumpduck.log",
 	}
 
 	for key, value := range updates {
@@ -99,6 +103,7 @@ func TestSetSupportedFields(t *testing.T) {
 	}
 
 	if cfg.Upload.Frequency != "30m" ||
+		cfg.Upload.RcloneConfigPath == "" ||
 		cfg.Upload.RcloneRemote != "backblaze" ||
 		cfg.Upload.RclonePath != "captures/team-a" ||
 		cfg.Capture.Interface != "en0" ||
@@ -121,6 +126,10 @@ func TestSetRejectsInvalidInputs(t *testing.T) {
 
 	if err := cfg.Set("upload.unknown", "value"); err == nil || !strings.Contains(err.Error(), "unsupported config key") {
 		t.Fatalf("expected unsupported key error, got %v", err)
+	}
+
+	if err := cfg.Set("upload.rclone_config_path", "relative/rclone.conf"); err == nil || !strings.Contains(err.Error(), "absolute path") {
+		t.Fatalf("expected absolute path error, got %v", err)
 	}
 }
 

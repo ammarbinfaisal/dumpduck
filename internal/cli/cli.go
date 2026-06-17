@@ -153,6 +153,7 @@ func runStatus(args []string, stdout io.Writer) error {
 	fmt.Fprintf(stdout, "Dump dir: %s\n", cfg.Capture.OutputDir)
 	fmt.Fprintf(stdout, "Upload frequency: %s\n", cfg.Upload.Frequency)
 	fmt.Fprintf(stdout, "Upload destination: %s:%s\n", cfg.Upload.RcloneRemote, cfg.Upload.RclonePath)
+	fmt.Fprintf(stdout, "Rclone config: %s\n", formatString(cfg.Upload.RcloneConfigPath, "rclone default"))
 	fmt.Fprintf(stdout, "State path: %s\n", cfg.State.Path)
 	fmt.Fprintf(stdout, "Last upload: %s\n", formatTime(st.LastSuccessfulUploadTime, "never"))
 	fmt.Fprintf(stdout, "Current window start: %s\n", formatTime(st.CurrentWindowStartTime, "none"))
@@ -397,6 +398,13 @@ func formatTime(ts *time.Time, fallback string) string {
 		return fallback
 	}
 	return ts.Format(time.RFC3339)
+}
+
+func formatString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }
 
 func printRootUsage(w io.Writer) {
