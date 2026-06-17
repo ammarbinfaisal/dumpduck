@@ -12,7 +12,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const DefaultConfigPath = "/etc/dumpduck/config.yaml"
+const (
+	DefaultConfigPath            = "/etc/dumpduck/config.yaml"
+	DefaultLaunchDaemonLabel     = "com.dumpduck.service"
+	DefaultLaunchDaemonPlistPath = "/Library/LaunchDaemons/com.dumpduck.service.plist"
+)
 
 var supportedSetKeys = []string{
 	"capture.bpf_filter",

@@ -1,6 +1,6 @@
 # DumpDuck
 
-DumpDuck is a macOS-oriented background TCP dump service for capturing traffic into rotating files and uploading completed windows to remote storage. Phase 2 implements the foreground runtime loop for `dumpduck run`, including tcpdump process management, periodic uploads with rclone, and stateful restart recovery. LaunchDaemon installation is still deferred.
+DumpDuck is a macOS-oriented background TCP dump service for capturing traffic into rotating files and uploading completed windows to remote storage. Phase 3 adds LaunchDaemon installation and removal around the existing `dumpduck run` runtime.
 
 ## Commands
 
@@ -17,8 +17,8 @@ dumpduck config init --path <path> [--force]
 dumpduck config set <key> <value> --path <path>
 dumpduck status --config <path>
 dumpduck run --config <path>
-dumpduck install
-dumpduck uninstall
+dumpduck install [--config <path>] [--binary <path>] [--plist <path>] [--dry-run] [--skip-load]
+dumpduck uninstall [--plist <path>] [--dry-run] [--skip-unload]
 ```
 
 ### `config init`
@@ -59,6 +59,8 @@ Loads the YAML config and the JSON state file if present, then prints:
 - state path
 - last successful upload time or `never`
 - current window start time or `none`
+- LaunchDaemon label
+- whether the default LaunchDaemon plist path exists
 
 ### `run`
 
@@ -88,9 +90,83 @@ DumpDuck skips uploading the file that is still likely being written by ignoring
 
 Real packet capture still depends on `tcpdump` permissions on the host. The test suite uses fake binaries and does not require root.
 
-### `install` / `uninstall`
+### `install`
 
-These are still placeholders. LaunchDaemon installation is planned for a later phase.
+`dumpduck install` prepares a macOS LaunchDaemon for DumpDuck using the label:
+
+```text
+com.dumpduck.service
+```
+
+Default paths:
+
+```text
+config: /etc/dumpduck/config.yaml
+plist:  /Library/LaunchDaemons/com.dumpduck.service.plist
+```
+
+The generated LaunchDaemon runs:
+
+```text
+<absolute dumpduck binary path> run --config <config path>
+```
+
+Supported flags:
+
+- `--config <path>`: config file path. If the file does not exist, DumpDuck creates a default config there before writing the plist.
+- `--binary <path>`: binary path to run. Defaults to the current executable when it can be discovered. If you invoke DumpDuck through `go run`, pass `--binary` explicitly so the LaunchDaemon does not point at Go's temporary build artifact.
+- `--plist <path>`: LaunchDaemon plist path.
+- `--dry-run`: prints the generated plist to stdout and does not write files or call `launchctl`.
+- `--skip-load`: writes the plist but skips `launchctl bootstrap system <plist>`.
+
+During a real install, DumpDuck creates the config directory, capture output directory, state directory, logging directory, and plist parent directory as needed.
+
+Real installs normally need `sudo` because both `/etc/dumpduck` and `/Library/LaunchDaemons` are root-owned on macOS:
+
+```bash
+sudo dumpduck install
+```
+
+If you are not running an already installed `dumpduck` binary, build one first and point install at it:
+
+```bash
+go build -o ./bin/dumpduck ./cmd/dumpduck
+sudo ./bin/dumpduck install --binary "$(pwd)/bin/dumpduck"
+```
+
+Preview the plist safely:
+
+```bash
+dumpduck install --dry-run --config /tmp/dumpduck.yaml --binary /usr/local/bin/dumpduck
+```
+
+Write the plist without loading it yet:
+
+```bash
+sudo dumpduck install --skip-load
+```
+
+### `uninstall`
+
+`dumpduck uninstall` removes the LaunchDaemon plist and, unless told otherwise, unloads the service first with:
+
+```text
+launchctl bootout system/com.dumpduck.service
+```
+
+Supported flags:
+
+- `--plist <path>`: LaunchDaemon plist path.
+- `--dry-run`: prints what would be unloaded and removed.
+- `--skip-unload`: removes the plist without calling `launchctl bootout`.
+
+Examples:
+
+```bash
+dumpduck uninstall --dry-run
+sudo dumpduck uninstall
+sudo dumpduck uninstall --skip-unload
+```
 
 ## Default configuration
 
@@ -134,7 +210,7 @@ The default path is:
 
 ## Remaining work
 
-Later phases will add:
+Later phases may add:
 
-- LaunchDaemon installation and removal for macOS service management
-- background service wiring around the existing `run` behavior
+- deeper service-health reporting beyond plist presence
+- more operational tooling around the existing background service
