@@ -1,8 +1,8 @@
 # DumpDuck
 
-DumpDuck is a macOS-oriented background TCP dump service for capturing traffic into rotating files and uploading completed windows to remote storage. Phase 1 lays down the Go project foundation, typed configuration and state handling, and a small CLI. Runtime orchestration with `tcpdump`, `rclone`, and `launchd` is intentionally deferred.
+DumpDuck is a macOS-oriented background TCP dump service for capturing traffic into rotating files and uploading completed windows to remote storage. Phase 2 implements the foreground runtime loop for `dumpduck run`, including tcpdump process management, periodic uploads with rclone, and stateful restart recovery. LaunchDaemon installation is still deferred.
 
-## Phase 1 commands
+## Commands
 
 Build or run the CLI from the repository root:
 
@@ -62,11 +62,35 @@ Loads the YAML config and the JSON state file if present, then prints:
 
 ### `run`
 
-Validates the config and exits with a phase-1 placeholder message. No background capture or upload loop is started yet.
+`dumpduck run --config <path>` now performs the real capture-window runtime:
+
+- loads and validates YAML config
+- loads JSON state from `state.path`
+- starts a new 24-hour capture window if none is active
+- resumes an existing active window after a restart
+- uploads completed `.pcap` files every `upload.frequency`
+- stops `tcpdump` and performs one final upload pass when the window expires or the process receives `SIGINT`/`SIGTERM`
+- persists uploaded-file records and the current window start so restarts do not re-upload completed files
+
+If DumpDuck starts after the saved window has already expired, it performs one upload pass for any completed pending dumps, clears the expired window marker, prints a message, and exits without starting `tcpdump`.
+
+`tcpdump` is invoked with:
+
+- `binaries.tcpdump_path`
+- optional `-i <interface>`
+- optional `-s <snaplen>` when `snaplen > 0`
+- `-G <rotate-interval-seconds>`
+- `-w <output_dir>/dumpduck-%Y%m%d-%H%M%S.pcap`
+
+`capture.bpf_filter` is appended using simple whitespace splitting. Quoted filter fragments are not supported yet.
+
+DumpDuck skips uploading the file that is still likely being written by ignoring `.pcap` files newer than one rotate interval. Uploaded files are recorded in the JSON state file, and optionally deleted locally when `upload.delete_after_success` is enabled.
+
+Real packet capture still depends on `tcpdump` permissions on the host. The test suite uses fake binaries and does not require root.
 
 ### `install` / `uninstall`
 
-These are placeholders in phase 1. LaunchDaemon installation is planned for a later phase.
+These are still placeholders. LaunchDaemon installation is planned for a later phase.
 
 ## Default configuration
 
@@ -96,7 +120,7 @@ binaries:
 
 ## State file
 
-Phase 1 introduces a JSON state file for later runtime phases. It currently tracks:
+The JSON state file tracks:
 
 - last successful upload time
 - uploaded file records
@@ -108,11 +132,9 @@ The default path is:
 /var/lib/dumpduck/state.json
 ```
 
-## Planned daemon behavior
+## Remaining work
 
 Later phases will add:
 
-- foreground and background runtime orchestration around `tcpdump`
-- periodic upload windows via `rclone`
-- stateful recovery across restarts
-- `launchd` installation and removal for macOS service management
+- LaunchDaemon installation and removal for macOS service management
+- background service wiring around the existing `run` behavior

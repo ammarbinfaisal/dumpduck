@@ -20,6 +20,32 @@ type UploadedFileRecord struct {
 	UploadedAt time.Time `json:"uploaded_at"`
 }
 
+func (s State) UploadedFileIndex() map[string]UploadedFileRecord {
+	index := make(map[string]UploadedFileRecord, len(s.UploadedFiles))
+	for _, record := range s.UploadedFiles {
+		index[filepath.Clean(record.Path)] = record
+	}
+	return index
+}
+
+func (s State) HasUploaded(path string) bool {
+	_, ok := s.UploadedFileIndex()[filepath.Clean(path)]
+	return ok
+}
+
+func (s *State) RecordUploadedFile(record UploadedFileRecord) {
+	record.Path = filepath.Clean(record.Path)
+
+	for i, existing := range s.UploadedFiles {
+		if filepath.Clean(existing.Path) == record.Path {
+			s.UploadedFiles[i] = record
+			return
+		}
+	}
+
+	s.UploadedFiles = append(s.UploadedFiles, record)
+}
+
 func Load(path string) (State, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

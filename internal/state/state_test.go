@@ -54,3 +54,33 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		t.Fatalf("state mismatch after round trip:\nwant: %#v\ngot: %#v", want, got)
 	}
 }
+
+func TestRecordUploadedFileReplacesExistingPath(t *testing.T) {
+	t.Parallel()
+
+	uploadedAt := time.Unix(1_700_000_000, 0).UTC()
+	updatedAt := uploadedAt.Add(5 * time.Minute)
+
+	st := State{
+		UploadedFiles: []UploadedFileRecord{
+			{
+				Path:       "/tmp/capture-1.pcap",
+				RemotePath: "remote:captures/capture-1.pcap",
+				UploadedAt: uploadedAt,
+			},
+		},
+	}
+
+	st.RecordUploadedFile(UploadedFileRecord{
+		Path:       "/tmp/../tmp/capture-1.pcap",
+		RemotePath: "remote:captures-renamed/capture-1.pcap",
+		UploadedAt: updatedAt,
+	})
+
+	if len(st.UploadedFiles) != 1 {
+		t.Fatalf("expected one uploaded file, got %#v", st.UploadedFiles)
+	}
+	if st.UploadedFiles[0].RemotePath != "remote:captures-renamed/capture-1.pcap" {
+		t.Fatalf("expected updated remote path, got %#v", st.UploadedFiles[0])
+	}
+}

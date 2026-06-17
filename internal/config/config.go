@@ -224,8 +224,12 @@ func validateDurationString(field, value string) error {
 	if value == "" {
 		return fmt.Errorf("%s must not be empty", field)
 	}
-	if _, err := time.ParseDuration(value); err != nil {
+	duration, err := time.ParseDuration(value)
+	if err != nil {
 		return fmt.Errorf("invalid value for %s: %q is not a valid duration: %w", field, value, err)
+	}
+	if duration <= 0 {
+		return fmt.Errorf("invalid value for %s: %q must be greater than zero", field, value)
 	}
 	return nil
 }

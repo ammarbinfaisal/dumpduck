@@ -1,15 +1,20 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/spf13/pflag"
 
 	"github.com/ammarbinfaisal/dumpduck/internal/config"
+	runtimepkg "github.com/ammarbinfaisal/dumpduck/internal/runtime"
 	"github.com/ammarbinfaisal/dumpduck/internal/state"
 )
 
@@ -162,12 +167,15 @@ func runDaemon(args []string, stdout io.Writer) error {
 		return errors.New("run does not accept positional arguments")
 	}
 
-	if _, err := config.Load(*path); err != nil {
+	cfg, err := config.Load(*path)
+	if err != nil {
 		return err
 	}
 
-	fmt.Fprintln(stdout, "DumpDuck runtime orchestration is not implemented in phase 1 yet.")
-	return nil
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	return runtimepkg.New(cfg, stdout).Run(ctx)
 }
 
 func runInstall(args []string, stdout io.Writer) error {
