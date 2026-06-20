@@ -227,7 +227,7 @@ func (s *Service) uploadPending(st *state.State, rotateInterval time.Duration, s
 			return err
 		}
 
-		output, err := exec.Command(s.cfg.Binaries.RclonePath, buildRcloneCopyArgs(s.cfg, localPath, remoteRoot)...).CombinedOutput()
+		output, err := exec.Command(s.cfg.Binaries.RclonePath, buildRcloneMoveArgs(s.cfg, localPath, remoteRoot)...).CombinedOutput()
 		if err != nil {
 			message := strings.TrimSpace(string(output))
 			if message == "" {
@@ -307,12 +307,12 @@ func buildTCPDumpArgs(cfg config.Config) ([]string, error) {
 	return args, nil
 }
 
-func buildRcloneCopyArgs(cfg config.Config, localPath, remoteRoot string) []string {
+func buildRcloneMoveArgs(cfg config.Config, localPath, remoteRoot string) []string {
 	args := make([]string, 0, 5)
 	if strings.TrimSpace(cfg.Upload.RcloneConfigPath) != "" {
 		args = append(args, "--config", cfg.Upload.RcloneConfigPath)
 	}
-	args = append(args, "copy", localPath, remoteRoot)
+	args = append(args, "move", localPath, remoteRoot)
 	return args
 }
 

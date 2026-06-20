@@ -1,6 +1,6 @@
 # DumpDuck
 
-DumpDuck is a macOS background `tcpdump` service managed with LaunchDaemon, configured with YAML, stateful through a JSON state file, and able to upload completed capture windows to remote storage with periodic `rclone` runs.
+DumpDuck is a macOS background `tcpdump` service managed with LaunchDaemon, configured with YAML, stateful through a JSON state file, and able to move completed capture windows to remote storage with periodic `rclone` runs.
 
 ## Commands
 
@@ -82,7 +82,7 @@ Loads the YAML config and the JSON state file if present, then prints:
 - loads JSON state from `state.path`
 - starts a new 24-hour capture window if none is active
 - resumes an existing active window after a restart
-- uploads completed `.pcap` files every `upload.frequency`
+- moves completed `.pcap` files to remote storage every `upload.frequency`
 - stops `tcpdump` and performs one final upload pass when the window expires or the process receives `SIGINT`/`SIGTERM`
 - persists uploaded-file records and the current window start so restarts do not re-upload completed files
 
@@ -98,7 +98,7 @@ If DumpDuck starts after the saved window has already expired, it performs one u
 
 `capture.bpf_filter` is appended using simple whitespace splitting. Quoted filter fragments are not supported yet.
 
-DumpDuck skips uploading the file that is still likely being written by ignoring `.pcap` files newer than one rotate interval. Uploaded files are recorded in the JSON state file, and optionally deleted locally when `upload.delete_after_success` is enabled.
+DumpDuck skips moving the file that is still likely being written by ignoring `.pcap` files newer than one rotate interval. Uploaded files are recorded in the JSON state file after a successful `rclone move`; the local source file is removed by rclone.
 
 Real packet capture still depends on `tcpdump` permissions on the host. The test suite uses fake binaries and does not require root.
 

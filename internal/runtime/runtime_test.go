@@ -141,26 +141,26 @@ func TestBuildTCPDumpArgs(t *testing.T) {
 	}
 }
 
-func TestBuildRcloneCopyArgsIncludesConfigPathWhenSet(t *testing.T) {
+func TestBuildRcloneMoveArgsIncludesConfigPathWhenSet(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.Default()
 	cfg.Upload.RcloneConfigPath = "/Users/test/.config/rclone/rclone.conf"
 
-	got := buildRcloneCopyArgs(cfg, "/tmp/dump.pcap", "remote:captures")
-	want := []string{"--config", "/Users/test/.config/rclone/rclone.conf", "copy", "/tmp/dump.pcap", "remote:captures"}
+	got := buildRcloneMoveArgs(cfg, "/tmp/dump.pcap", "remote:captures")
+	want := []string{"--config", "/Users/test/.config/rclone/rclone.conf", "move", "/tmp/dump.pcap", "remote:captures"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("rclone args mismatch:\nwant: %#v\ngot: %#v", want, got)
 	}
 }
 
-func TestBuildRcloneCopyArgsUsesDefaultConfigWhenUnset(t *testing.T) {
+func TestBuildRcloneMoveArgsUsesDefaultConfigWhenUnset(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.Default()
 
-	got := buildRcloneCopyArgs(cfg, "/tmp/dump.pcap", "remote:captures")
-	want := []string{"copy", "/tmp/dump.pcap", "remote:captures"}
+	got := buildRcloneMoveArgs(cfg, "/tmp/dump.pcap", "remote:captures")
+	want := []string{"move", "/tmp/dump.pcap", "remote:captures"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("rclone args mismatch:\nwant: %#v\ngot: %#v", want, got)
 	}
